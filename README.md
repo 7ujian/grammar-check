@@ -12,7 +12,7 @@ No API key required. Uses only Python standard library.
 
 ```bash
 git clone https://github.com/7ujian/grammar-check.git
-cc --plugin-dir /path/to/grammar-check
+claude --plugin-dir /path/to/grammar-check
 ```
 
 ## Modes

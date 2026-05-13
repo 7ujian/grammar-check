@@ -1,5 +1,5 @@
 {
   "name": "grammar-check",
-  "version": "1.1.0",
-  "description": "Check English grammar and style in user prompts, providing polite corrections for errors and unnatural expressions."
+  "version": "2.0.0",
+  "description": "Check English grammar and style in user prompts using Claude. Provides polite corrections for errors and style issues before answering."
 }

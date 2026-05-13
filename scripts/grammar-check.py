@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check English via LanguageTool API and inject grammar corrections as additionalContext.
+"""Check English via Claude API and inject grammar corrections as additionalContext.
 
 Supports modes: off, basic, conversational, formal, standard (default).
 Mode is read from ~/.grammar-check-mode (set by /grammar-check slash command).
@@ -9,19 +9,52 @@ import sys
 import json
 import os
 import urllib.request
-import urllib.parse
 import urllib.error
 
-API_URL = "https://api.languagetool.org/v2/check"
 MIN_WORDS = 3
-MAX_MATCHES = 5
-TIMEOUT = 8
+TIMEOUT = 15
 STATE_FILE = os.path.expanduser("~/.grammar-check-mode")
+
+BASE_URL = os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
+API_KEY = os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
+MODEL = os.environ.get("ANTHROPIC_DEFAULT_HAIKU_MODEL", "claude-haiku-4-5-20251001")
 
 MODE_LABELS = {
     "basic": "Basic",
     "conversational": "Conversational",
     "formal": "Formal",
+}
+
+SYSTEM_PROMPTS = {
+    "basic": (
+        "Check the following text ONLY for spelling mistakes and grammar errors. "
+        "Do NOT comment on style, word choice, tone, or phrasing.\n\n"
+        "For each issue, output one line in this exact format:\n"
+        '- TYPE: "original text" → "correction" (brief reason)\n\n'
+        "If no issues are found, output exactly: No issues."
+    ),
+    "conversational": (
+        "Check the following text for spelling/grammar errors AND unnatural or "
+        "awkward phrasing. Suggest more natural, colloquial, native-sounding alternatives.\n\n"
+        "For each issue, output one line in this exact format:\n"
+        '- TYPE: "original text" → "correction" (brief reason)\n\n'
+        "If no issues are found, output exactly: No issues."
+    ),
+    "formal": (
+        "Check the following text strictly for: spelling/grammar errors, informal "
+        "language, slang, contractions, casual expressions, wordiness, weak phrasing, "
+        "passive voice overuse. Suggest polished, professional, academic alternatives.\n\n"
+        "For each issue, output one line in this exact format:\n"
+        '- TYPE: "original text" → "correction" (brief reason)\n\n'
+        "If no issues are found, output exactly: No issues."
+    ),
+    "standard": (
+        "Check the following text for spelling/grammar errors and style issues "
+        "(wordiness, awkward phrasing, unclear expression).\n\n"
+        "For each issue, output one line in this exact format:\n"
+        '- TYPE: "original text" → "correction" (brief reason)\n\n'
+        "If no issues are found, output exactly: No issues."
+    ),
 }
 
 TONE_INSTRUCTIONS = {
@@ -53,57 +86,39 @@ def read_mode() -> str:
         return "standard"
 
 
-def check_grammar(text: str, mode: str) -> list | None:
-    params = {"text": text, "language": "en-US"}
-    if mode == "formal":
-        params["level"] = "picky"
+def check_grammar(text: str, mode: str) -> str | None:
+    """Call Claude API to grammar-check the text. Returns the response text or None."""
+    system_prompt = SYSTEM_PROMPTS.get(mode, SYSTEM_PROMPTS["standard"])
 
-    payload = urllib.parse.urlencode(params).encode("utf-8")
-    req = urllib.request.Request(API_URL, data=payload)
-    req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    body = {
+        "model": MODEL,
+        "max_tokens": 600,
+        "system": system_prompt,
+        "messages": [
+            {"role": "user", "content": text}
+        ],
+    }
+
+    req = urllib.request.Request(
+        f"{BASE_URL}/v1/messages",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": API_KEY,
+            "anthropic-version": "2023-06-01",
+        },
+    )
 
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-            return json.loads(resp.read().decode("utf-8")).get("matches", [])
+            result = json.loads(resp.read().decode("utf-8"))
+            for block in result.get("content", []):
+                if block.get("type") == "text":
+                    return block.get("text", "").strip()
+            return None
     except (urllib.error.URLError, urllib.error.HTTPError,
-            json.JSONDecodeError, OSError):
+            json.JSONDecodeError, OSError, KeyError, IndexError):
         return None
-
-
-def format_corrections(text: str, matches: list, mode: str) -> str:
-    lines = []
-
-    for m in matches:
-        if len(lines) >= MAX_MATCHES:
-            break
-
-        issue_type = (m.get("rule", {}) or {}).get("issueType", "other")
-
-        if mode == "basic" and issue_type not in ("misspelling", "grammar"):
-            continue
-
-        offset = m.get("offset", 0)
-        length = m.get("length", 0)
-        message = m.get("message", m.get("shortMessage", ""))
-        replacements = [
-            r.get("value", "")
-            for r in (m.get("replacements") or [])[:3]
-        ]
-
-        error_text = text[offset:offset + length] if offset + length <= len(text) else "?"
-        replacement_str = " / ".join(replacements) if replacements else "..."
-
-        tag = {
-            "misspelling": "Spelling", "grammar": "Grammar",
-            "style": "Style", "typographical": "Typo",
-        }.get(issue_type, issue_type.title())
-
-        if replacement_str == "...":
-            lines.append(f"- {tag}: \"{error_text}\" — {message}")
-        else:
-            lines.append(f"- {tag}: \"{error_text}\" → {replacement_str} ({message})")
-
-    return "\n".join(lines)
 
 
 def main() -> None:
@@ -118,18 +133,17 @@ def main() -> None:
         print(json.dumps({}))
         return
 
-    user_prompt = stdin_data.get("user_prompt", "").strip()
-    if len(user_prompt.split()) < MIN_WORDS:
+    prompt = stdin_data.get("prompt", "").strip()
+    if len(prompt.split()) < MIN_WORDS:
         print(json.dumps({}))
         return
 
-    matches = check_grammar(user_prompt, mode)
-    if matches is None or not matches:
+    corrections = check_grammar(prompt, mode)
+    if corrections is None:
         print(json.dumps({}))
         return
 
-    corrections = format_corrections(user_prompt, matches, mode)
-    if not corrections:
+    if corrections in ("No issues.", "No issues"):
         print(json.dumps({}))
         return
 

@@ -10,32 +10,41 @@ Uses your configured Haiku-equivalent model for fast, cost-effective grammar che
 
 ## Install
 
-### Option A — auto-load (recommended for personal use)
-
-```bash
-git clone https://github.com/7ujian/grammar-check.git ~/.claude/plugins/data/grammar-check-inline
-```
-
-Restart Claude Code. The plugin loads automatically from `~/.claude/plugins/data/`.
-
-### Option B — per-session
+### Option A — per-session (quick test)
 
 ```bash
 git clone https://github.com/7ujian/grammar-check.git
 claude --plugin-dir /path/to/grammar-check
 ```
 
-### Option C — custom marketplace (for sharing with a team)
-
-Add the repo as a custom marketplace, then install:
+### Option B — permanent install (recommended)
 
 ```bash
-# One-time marketplace registration
-claude plugins add marketplace https://github.com/7ujian/grammar-check
-
-# Install the plugin
-claude plugins install grammar-check@<marketplace-name>
+# Clone and copy to cache
+git clone https://github.com/7ujian/grammar-check.git /tmp/grammar-check
+mkdir -p ~/.claude/plugins/cache/local/grammar-check/2.0.0
+cp -r /tmp/grammar-check/{.claude-plugin,commands,hooks,scripts} ~/.claude/plugins/cache/local/grammar-check/2.0.0/
 ```
+
+Then add this entry to `~/.claude/plugins/installed_plugins.json` under `"plugins"`:
+
+```json
+"grammar-check@local": [{
+  "scope": "user",
+  "installPath": "~/.claude/plugins/cache/local/grammar-check/2.0.0",
+  "version": "2.0.0"
+}]
+```
+
+And enable it in `~/.claude/settings.json`:
+
+```json
+"enabledPlugins": {
+  "grammar-check@local": true
+}
+```
+
+Restart Claude Code.
 
 ## Modes
 

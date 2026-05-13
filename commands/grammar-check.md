@@ -1,6 +1,6 @@
-/grammar-check <mode>
+/grammar-check off|basic|conversational|formal|standard
 
-Switch the grammar-check plugin mode. Modes:
+Switch grammar check mode:
 
 - `off` — disable grammar checking entirely
 - `basic` — only flag grammar and spelling errors (skip style suggestions)

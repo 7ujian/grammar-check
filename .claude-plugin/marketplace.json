@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "grammar-check",
+  "description": "Grammar and style checking for Claude Code. Checks English in user prompts and suggests corrections using Claude.",
+  "owner": {
+    "name": "7ujian",
+    "url": "https://github.com/7ujian"
+  },
+  "plugins": [
+    {
+      "name": "grammar-check",
+      "description": "Check English grammar and style in user prompts using Claude. Provides polite corrections for errors and style issues before answering.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

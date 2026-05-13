@@ -1,4 +1,5 @@
 ---
+name: grammar-check
 description: Switch grammar check mode (off|basic|conversational|formal|standard)
 argument-hint: <mode>
 ---

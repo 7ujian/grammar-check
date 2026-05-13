@@ -1,0 +1,17 @@
+{
+  "description": "When user submits a prompt, check for English grammar issues and inject correction context",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/grammar-check.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
